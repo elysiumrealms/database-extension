@@ -13,6 +13,13 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 
 ### Fixed
 
+## [v1.0.1] - 2024-06-10
+
+### Changed
+
+- Use daterange instead.
+- Rename marco `archiveMonths` to `coldStorage`.
+
 ## [v1.0.0] - 2024-06-10
 
 Initial Project
