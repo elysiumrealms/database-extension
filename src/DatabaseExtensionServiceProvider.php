@@ -2,6 +2,7 @@
 
 namespace Elysiumrealms\DatabaseExtension;
 
+use DateTime;
 use Illuminate\Support\Str;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\ServiceProvider;
@@ -89,14 +90,18 @@ class DatabaseExtensionServiceProvider extends ServiceProvider
                 });
         });
 
-        Blueprint::macro('archiveMonths', function ($months = 1) {
+        Blueprint::macro('coldStorage', function ($interval = '90 days') {
             /** @var Illuminate\Database\Schema\Blueprint */
             $blueprint = $this;
 
             $table = $blueprint->getTable();
             $snake = Str::snake($table);
 
-            $event = "archive_months_{$snake}";
+            $event = "dehydrate_{$snake}";
+
+            $days = (int)(new DateTime())
+                ->diff(new DateTime($interval))
+                ->format('%a');
 
             DB::unprepared(<<<SQL
                 DROP EVENT IF EXISTS {$event};
@@ -104,28 +109,52 @@ class DatabaseExtensionServiceProvider extends ServiceProvider
                 ON SCHEDULE EVERY 1 DAY
                 STARTS CURDATE() + INTERVAL 1 DAY
                 DO
-                CALL archive_months('{$table}', {$months});
+                CALL dehydrate('{$table}', {$days}, TRUE);
             SQL);
 
             DB::unprepared(<<<SQL
-                DROP PROCEDURE IF EXISTS `archive_months`;
-                CREATE PROCEDURE `archive_months`(
+                DROP PROCEDURE IF EXISTS `dehydrate`;
+                CREATE PROCEDURE `dehydrate`(
                     IN `table_name` VARCHAR(255),
-                    IN `months` INT
+                    IN `days` INT,
+                    IN `daily` BOOLEAN
                 )
                 BEGIN
                     -- 設置目標表名稱
-                    SET
-                    @target_table_name = CONCAT(
+                    SET @target_table_name = CONCAT(
                         table_name,
                         '_',
                         DATE_FORMAT(
+                            DATE_SUB(
+                                CURDATE(),
+                                INTERVAL days DAY
+                            ),
+                            '%Y%m'
+                        )
+                    );
+
+                    SET @range_begin = DATE_FORMAT(
                         DATE_SUB(
                             CURDATE(),
-                            INTERVAL months MONTH
+                            INTERVAL days DAY
                         ),
-                        '%Y%m'
-                        )
+                        '%Y-%m-01'
+                    );
+
+                    SET @range_until = DATE_SUB(
+                        CURDATE(),
+                        INTERVAL days DAY
+                    );
+
+                    IF daily = FALSE THEN
+                        SET @range_until = LAST_DAY(
+                            @range_until
+                        );
+                    END IF;
+
+                    SET @range_until = DATE_FORMAT(
+                        @range_until,
+                        '%Y-%m-%d'
                     );
 
                     -- 如果表不存在，創建它
@@ -143,8 +172,11 @@ class DatabaseExtensionServiceProvider extends ServiceProvider
                         'INSERT INTO ', @target_table_name,
                         ' SELECT * FROM ', table_name,
                         ' WHERE DATE(created_at)',
-                        ' < DATE_SUB(CURDATE(), INTERVAL ',
-                        months, ' MONTH);'
+                        ' BETWEEN ',
+                        QUOTE(@range_begin),
+                        ' AND ',
+                        QUOTE(@range_until),
+                        ';'
                     );
                     PREPARE ship_stmt FROM @ship_data_sql;
                     EXECUTE ship_stmt;
@@ -154,8 +186,11 @@ class DatabaseExtensionServiceProvider extends ServiceProvider
                     SET @delete_data_sql = CONCAT(
                         'DELETE FROM ', table_name,
                         ' WHERE DATE(created_at)',
-                        ' < DATE_SUB(CURDATE(), INTERVAL ',
-                        months, ' MONTH);'
+                        ' BETWEEN ',
+                        QUOTE(@range_begin),
+                        ' AND ',
+                        QUOTE(@range_until),
+                        ';'
                     );
                     PREPARE delete_stmt FROM @delete_data_sql;
                     EXECUTE delete_stmt;
