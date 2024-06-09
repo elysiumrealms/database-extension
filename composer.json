@@ -1,0 +1,41 @@
+{
+    "name": "elysiumrealms/database-extension",
+    "type": "library",
+    "description": "Database Extension for Laravel",
+    "keywords": ["laravel", "database", "extension"],
+    "authors": [
+        {
+            "name": "deflinhec",
+            "email": "deflinhec@gmail.com"
+        }
+    ],
+    "version": "1.0.0",
+    "license": "MIT",
+    "require": {
+        "php": "*",
+        "laravel/framework": "*"
+    },
+    "require-dev": {
+        "phpunit/phpunit": "^7"
+    },
+    "autoload": {
+        "psr-4": {
+            "Elysiumrealms\\DatabaseExtension\\": "src/"
+        }
+    },
+    "scripts": {
+        "post-autoload-dump": "@prepare"
+    },
+    "extra": {
+        "laravel": {
+            "providers": [
+                "Elysiumrealms\\DatabaseExtension\\DatabaseExtensionServiceProvider"
+            ]
+        }
+    },
+    "config": {
+        "sort-packages": true
+    },
+    "minimum-stability": "dev",
+    "prefer-stable": true
+}
