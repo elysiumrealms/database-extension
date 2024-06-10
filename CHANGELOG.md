@@ -13,6 +13,12 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 
 ### Fixed
 
+## [v1.0.2] - 2024-06-10
+
+### Added
+
+- Add marco `usePartition`.
+
 ## [v1.0.1] - 2024-06-10
 
 ### Changed
