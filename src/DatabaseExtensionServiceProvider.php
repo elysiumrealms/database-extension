@@ -95,17 +95,14 @@ class DatabaseExtensionServiceProvider extends ServiceProvider
             $blueprint = $this;
 
             $table = $blueprint->getTable();
-            $snake = Str::snake($table);
-
-            $event = "dehydrate_{$snake}";
 
             $days = (int)(new DateTime())
                 ->diff(new DateTime($interval))
                 ->format('%a');
 
             DB::unprepared(<<<SQL
-                DROP EVENT IF EXISTS {$event};
-                CREATE EVENT {$event}
+                DROP EVENT IF EXISTS dehydrate_{$table};
+                CREATE EVENT dehydrate_{$table}
                 ON SCHEDULE EVERY 1 DAY
                 STARTS CURDATE() + INTERVAL 1 DAY
                 DO
@@ -196,6 +193,206 @@ class DatabaseExtensionServiceProvider extends ServiceProvider
                     EXECUTE delete_stmt;
                     DEALLOCATE PREPARE delete_stmt;
                 END;
+            SQL);
+        });
+
+        Blueprint::macro('dropColdStorage', function() {
+            /** @var Illuminate\Database\Schema\Blueprint */
+            $blueprint = $this;
+
+            $table = $blueprint->getTable();
+
+            DB::unprepared(<<<SQL
+                DROP EVENT IF EXISTS dehydrate_{$table};
+            SQL);
+        });
+
+        Blueprint::macro('usePartition', function($interval = '90 days') {
+            /** @var Illuminate\Database\Schema\Blueprint */
+            $blueprint = $this;
+
+            $table = $blueprint->getTable();
+
+            DB::unprepared(<<<SQL
+                DROP EVENT IF EXISTS create_partition_{$table};
+                CREATE EVENT create_partition_{$table}
+                ON SCHEDULE EVERY 1 DAY
+                STARTS TIMESTAMP(CURDATE(), '23:55:00')
+                DO
+                CALL create_partition('{$table}');
+            SQL);
+
+            $today = now()->format('Ymd');
+            $tomorrow = now()->addDay()->format('Y-m-d');
+            DB::unprepared(<<<SQL
+                ALTER TABLE {$table}
+                ADD COLUMN `date` DATE
+                    NOT NULL
+                    DEFAULT (CURDATE())
+                    AFTER `id`;
+                ALTER TABLE {$table}
+                    DROP PRIMARY KEY,
+                    ADD PRIMARY KEY(id, date);
+                ALTER TABLE {$table}
+                PARTITION BY RANGE(TO_DAYS(date)) (
+                    PARTITION p{$today}
+                        VALUES LESS THAN (TO_DAYS('{$tomorrow}'))
+                );
+                DROP TRIGGER IF EXISTS set_partition_column_{$table};
+                CREATE TRIGGER set_partition_column_{$table}
+                BEFORE INSERT ON {$table}
+                FOR EACH ROW
+                BEGIN
+                    SET NEW.date = DATE(NEW.created_at);
+                END;
+            SQL);
+
+            DB::unprepared(<<<SQL
+                DROP PROCEDURE IF EXISTS `create_partition`;
+                CREATE PROCEDURE `create_partition`(
+                    IN `table_name` VARCHAR(255)
+                )
+                BEGIN
+                    DECLARE i INT DEFAULT 1;
+
+                    -- Create partitions for the next 3 days
+                    WHILE i <= 3 DO
+                        SET @partition_date = CURDATE() + INTERVAL i DAY;
+
+                        SET @next_partition_name = CONCAT(
+                            'p',
+                            DATE_FORMAT(
+                                @partition_date, '%Y%m%d'
+                            )
+                        );
+
+                        IF NOT EXISTS (
+                            SELECT 1
+                            FROM INFORMATION_SCHEMA.PARTITIONS
+                            WHERE TABLE_NAME=table_name
+                            AND PARTITION_NAME = @next_partition_name) THEN
+
+                            SET @next_partition_value = TO_DAYS(
+                                DATE_FORMAT(
+                                    @partition_date + INTERVAL 1 DAY,
+                                    '%Y-%m-%d'
+                                )
+                            );
+
+                            SET @add_partition_sql = CONCAT(
+                                'ALTER TABLE ', table_name,
+                                ' ADD PARTITION (PARTITION ',
+                                @next_partition_name,
+                                ' VALUES LESS THAN (',
+                                @next_partition_value,
+                                ' ));'
+                            );
+                            PREPARE add_partition_stmt FROM @add_partition_sql;
+                            EXECUTE add_partition_stmt;
+                            DEALLOCATE PREPARE add_partition_stmt;
+                        END IF;
+
+                        SET i = i + 1;
+                    END WHILE;
+                END;
+            SQL);
+
+            $days = (int)(new DateTime())
+                ->diff(new DateTime($interval))
+                ->format('%a');
+
+            DB::unprepared(<<<SQL
+                DROP EVENT IF EXISTS dehydrate_partition_{$table};
+                CREATE EVENT dehydrate_partition_{$table}
+                ON SCHEDULE EVERY 1 DAY
+                STARTS CURDATE() + INTERVAL 1 DAY
+                DO
+                CALL dehydrate_partition('{$table}', {$days});
+            SQL);
+
+            DB::unprepared(<<<SQL
+                DROP PROCEDURE IF EXISTS `dehydrate_partition`;
+                CREATE PROCEDURE `dehydrate_partition`(
+                    IN `table_name` VARCHAR(255),
+                    IN `days` INT
+                )
+                BEGIN
+                    SET @old_partition_name = CONCAT(
+                        'p',
+                        DATE_FORMAT(
+                            DATE_SUB(
+                                CURDATE(),
+                                INTERVAL 1 MONTH
+                            ),
+                            '%Y%m%d'
+                        )
+                    );
+
+                    IF EXISTS (
+                        SELECT 1
+                        FROM INFORMATION_SCHEMA.PARTITIONS
+                        WHERE TABLE_NAME=table_name
+                        AND PARTITION_NAME = @old_partition_name) THEN
+
+                        SET @target_table_name =
+                            CONCAT(table_name, '_',
+                                DATE_FORMAT(
+                                    DATE_SUB(
+                                        CURDATE(),
+                                        INTERVAL days DAY
+                                    ),
+                                    '%Y%m'
+                                )
+                            );
+
+                        SET @create_table_sql = CONCAT(
+                            'CREATE TABLE IF NOT EXISTS ',
+                            target_table_name, ' LIKE ',
+                            table_name, ';'
+                        );
+                        PREPARE create_stmt FROM @create_table_sql;
+                        EXECUTE create_stmt;
+                        DEALLOCATE PREPARE create_stmt;
+
+                        SET @ship_data_sql = CONCAT(
+                            'INSERT INTO ', @target_table_name,
+                            ' SELECT * FROM ', table_name,
+                            ' PARTITION(',
+                            @old_partition_name,
+                            ' );'
+                        );
+                        PREPARE ship_stmt FROM @ship_data_sql;
+                        EXECUTE ship_stmt;
+                        DEALLOCATE PREPARE ship_stmt;
+
+                        SET @drop_partition_sql = CONCAT(
+                            'ALTER TABLE ', table_name,
+                            ' DROP PARTITION ',
+                            old_partition_name, ';'
+                        );
+                        PREPARE drop_stmt FROM @drop_partition_sql;
+                        EXECUTE drop_stmt;
+                        DEALLOCATE PREPARE drop_stmt;
+                    END IF;
+                END;
+            SQL);
+        });
+
+        Blueprint::macro('dropPartition', function() {
+            /** @var Illuminate\Database\Schema\Blueprint */
+            $blueprint = $this;
+
+            $table = $blueprint->getTable();
+
+            DB::unprepared(<<<SQL
+                CREATE TABLE {$table}_new AS
+                    SELECT * FROM {$table};
+                DROP TABLE {$table};
+                RENAME TABLE {$table}_new TO {$table};
+                ALTER TABLE {$table} ADD PRIMARY KEY(id);
+                DROP EVENT IF EXISTS create_partition_{$table};
+                DROP EVENT IF EXISTS dehydrate_partition_{$table};
+                DROP TRIGGER IF EXISTS set_partition_column_{$table};
             SQL);
         });
     }
