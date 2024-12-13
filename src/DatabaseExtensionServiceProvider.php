@@ -399,7 +399,7 @@ class DatabaseExtensionServiceProvider extends ServiceProvider
         });
 
         /**
-         * Register the Blueprint macro.
+         * Register the Builder macro.
          *
          * @return void
          */

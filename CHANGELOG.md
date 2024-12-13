@@ -13,6 +13,16 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 
 ### Fixed
 
+## [v1.0.3] - 2024-12-14
+
+### Added
+
+- Add builder marco `toRawSql`.
+
+### Changed
+
+### Fixed
+
 ## [v1.0.2] - 2024-06-10
 
 ### Added
