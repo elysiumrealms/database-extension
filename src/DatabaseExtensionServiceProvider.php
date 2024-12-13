@@ -397,47 +397,47 @@ class DatabaseExtensionServiceProvider extends ServiceProvider
                 DROP TRIGGER IF EXISTS set_partition_column_{$table};
             SQL);
         });
+    }
 
-        /**
-         * Register the Builder macro.
-         *
-         * @return void
-         */
-        protected function registerBuilderMacro()
-        {
-            \Illuminate\Database\Eloquent\Builder
-                ::macro('toRawSql', function () {
-                    /** @var \Illuminate\Database\Eloquent\Builder $this */
-                    $raw = $this->toSql();
-                    collect($this->getBindings())
-                        ->each(function ($binding) use (&$raw) {
-                            $raw = preg_replace(
-                                '/\?/',
-                                is_string($binding)
-                                    ? "'$binding'" : $binding,
-                                $raw,
-                                1
-                            );
-                        });
-                    return addcslashes($raw, '\\');
-                });
+    /**
+     * Register the Builder macro.
+     *
+     * @return void
+     */
+    protected function registerBuilderMacro()
+    {
+        \Illuminate\Database\Eloquent\Builder
+            ::macro('toRawSql', function () {
+                /** @var \Illuminate\Database\Eloquent\Builder $this */
+                $raw = $this->toSql();
+                collect($this->getBindings())
+                    ->each(function ($binding) use (&$raw) {
+                        $raw = preg_replace(
+                            '/\?/',
+                            is_string($binding)
+                                ? "'$binding'" : $binding,
+                            $raw,
+                            1
+                        );
+                    });
+                return addcslashes($raw, '\\');
+            });
 
-            \Illuminate\Database\Query\Builder
-                ::macro('toRawSql', function () {
-                    /** @var \Illuminate\Database\Query\Builder $this */
-                    $raw = $this->toSql();
-                    collect($this->getBindings())
-                        ->each(function ($binding) use (&$raw) {
-                            $raw = preg_replace(
-                                '/\?/',
-                                is_string($binding)
-                                    ? "'$binding'" : $binding,
-                                $raw,
-                                1
-                            );
-                        });
-                    return addcslashes($raw, '\\');
-                });
-        }
+        \Illuminate\Database\Query\Builder
+            ::macro('toRawSql', function () {
+                /** @var \Illuminate\Database\Query\Builder $this */
+                $raw = $this->toSql();
+                collect($this->getBindings())
+                    ->each(function ($binding) use (&$raw) {
+                        $raw = preg_replace(
+                            '/\?/',
+                            is_string($binding)
+                                ? "'$binding'" : $binding,
+                            $raw,
+                            1
+                        );
+                    });
+                return addcslashes($raw, '\\');
+            });
     }
 }
