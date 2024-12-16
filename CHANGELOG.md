@@ -13,6 +13,16 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 
 ### Fixed
 
+## [Unreleased] - 2024-12-16
+
+### Added
+
+### Changed
+
+### Fixed
+
+- Fix typo in Buleprint Macro.
+
 ## [v1.0.3] - 2024-12-14
 
 ### Added
