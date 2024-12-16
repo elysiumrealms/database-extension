@@ -92,7 +92,7 @@ class DatabaseExtensionServiceProvider extends ServiceProvider
                 });
         });
 
-        Blueprint::macro('useArchive', function ($interval = '90 days') {
+        Blueprint::macro('autoArchive', function ($interval = '90 days') {
             /** @var Illuminate\Database\Schema\Blueprint */
             $blueprint = $this;
 
@@ -191,7 +191,7 @@ class DatabaseExtensionServiceProvider extends ServiceProvider
             SQL);
         });
 
-        Blueprint::macro('dropArchive', function() {
+        Blueprint::macro('dropAutoArchive', function() {
             /** @var Illuminate\Database\Schema\Blueprint */
             $blueprint = $this;
 
