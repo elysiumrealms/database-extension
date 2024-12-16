@@ -108,15 +108,14 @@ class DatabaseExtensionServiceProvider extends ServiceProvider
                 ON SCHEDULE EVERY 1 DAY
                 STARTS CURDATE() + INTERVAL 1 DAY
                 DO
-                CALL dehydrate('{$table}', {$days}, TRUE);
+                CALL dehydrate('{$table}', {$days});
             SQL);
 
             DB::unprepared(<<<SQL
                 DROP PROCEDURE IF EXISTS `dehydrate`;
                 CREATE PROCEDURE `dehydrate`(
                     IN `table_name` VARCHAR(255),
-                    IN `days` INT,
-                    IN `daily` BOOLEAN
+                    IN `days` INT
                 )
                 BEGIN
                     -- 設置目標表名稱
@@ -145,14 +144,13 @@ class DatabaseExtensionServiceProvider extends ServiceProvider
                         INTERVAL days DAY
                     );
 
-                    IF daily = FALSE THEN
-                        SET @range_until = LAST_DAY(
-                            @range_until
-                        );
-                    END IF;
-
                     SET @range_until = DATE_FORMAT(
-                        @range_until,
+                        LAST_DAY(
+                            DATE_SUB(
+                                CURDATE(),
+                                INTERVAL days DAY
+                            )
+                        ),
                         '%Y-%m-%d'
                     );
 
@@ -336,21 +334,22 @@ class DatabaseExtensionServiceProvider extends ServiceProvider
                         WHERE TABLE_NAME=table_name
                         AND PARTITION_NAME = @old_partition_name) THEN
 
-                        SET @target_table_name =
-                            CONCAT(table_name, '_',
-                                DATE_FORMAT(
-                                    DATE_SUB(
-                                        CURDATE(),
-                                        INTERVAL days DAY
-                                    ),
-                                    '%Y%m'
-                                )
-                            );
+                        SET @target_table_name =CONCAT(
+                            table_name, 
+                            '_',
+                            DATE_FORMAT(
+                                DATE_SUB(
+                                    CURDATE(),
+                                    INTERVAL days DAY
+                                ),
+                                '%Y%m'
+                            )
+                        );
 
                         SET @create_table_sql = CONCAT(
                             'CREATE TABLE IF NOT EXISTS ',
-                            target_table_name, ' LIKE ',
-                            table_name, ';'
+                            @target_table_name, 
+                            ' LIKE ', table_name, ';'
                         );
                         PREPARE create_stmt FROM @create_table_sql;
                         EXECUTE create_stmt;
