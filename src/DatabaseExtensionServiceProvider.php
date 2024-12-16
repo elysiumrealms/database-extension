@@ -92,7 +92,7 @@ class DatabaseExtensionServiceProvider extends ServiceProvider
                 });
         });
 
-        Blueprint::macro('coldStorage', function ($interval = '90 days') {
+        Blueprint::macro('useArchive', function ($interval = '90 days') {
             /** @var Illuminate\Database\Schema\Blueprint */
             $blueprint = $this;
 
@@ -137,11 +137,6 @@ class DatabaseExtensionServiceProvider extends ServiceProvider
                             INTERVAL days DAY
                         ),
                         '%Y-%m-01'
-                    );
-
-                    SET @range_until = DATE_SUB(
-                        CURDATE(),
-                        INTERVAL days DAY
                     );
 
                     SET @range_until = DATE_FORMAT(
@@ -196,7 +191,7 @@ class DatabaseExtensionServiceProvider extends ServiceProvider
             SQL);
         });
 
-        Blueprint::macro('dropColdStorage', function() {
+        Blueprint::macro('dropArchive', function() {
             /** @var Illuminate\Database\Schema\Blueprint */
             $blueprint = $this;
 
