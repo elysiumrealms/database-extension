@@ -77,24 +77,31 @@ class DatabaseExtensionServiceProvider extends ServiceProvider
 
         Blueprint::macro('dropForeignKeys', function () {
             /** @var Illuminate\Database\Schema\Blueprint */
-            $table = $this;
-            // Get all foreign keys of the table
+            $blueprint = $this;
+
+            if (DB::getDriverName() !== 'mysql')
+                return;
+
+            // Get all foreign keys of the blueprint
             $foreignKeys = DB::select(<<<SQL
                 SELECT CONSTRAINT_NAME
                 FROM INFORMATION_SCHEMA.KEY_COLUMN_USAGE
                 WHERE TABLE_SCHEMA = ?
                 AND TABLE_NAME = ?
                 AND REFERENCED_TABLE_NAME IS NOT NULL
-            SQL, [DB::getDatabaseName(), $table->getTable()]);
+            SQL, [DB::getDatabaseName(), $blueprint->getTable()]);
             collect($foreignKeys)
-                ->each(function ($foreignKey) use ($table) {
-                    $table->dropForeign($foreignKey->CONSTRAINT_NAME);
+                ->each(function ($foreignKey) use ($blueprint) {
+                    $blueprint->dropForeign($foreignKey->CONSTRAINT_NAME);
                 });
         });
 
         Blueprint::macro('autoArchive', function ($interval = '90 days') {
             /** @var Illuminate\Database\Schema\Blueprint */
             $blueprint = $this;
+
+            if (DB::getDriverName() !== 'mysql')
+                return;
 
             $table = $blueprint->getTable();
 
@@ -191,9 +198,12 @@ class DatabaseExtensionServiceProvider extends ServiceProvider
             SQL);
         });
 
-        Blueprint::macro('dropAutoArchive', function() {
+        Blueprint::macro('dropAutoArchive', function () {
             /** @var Illuminate\Database\Schema\Blueprint */
             $blueprint = $this;
+
+            if (DB::getDriverName() !== 'mysql')
+                return;
 
             $table = $blueprint->getTable();
 
@@ -202,9 +212,12 @@ class DatabaseExtensionServiceProvider extends ServiceProvider
             SQL);
         });
 
-        Blueprint::macro('usePartition', function($interval = '90 days') {
+        Blueprint::macro('usePartition', function ($interval = '90 days') {
             /** @var Illuminate\Database\Schema\Blueprint */
             $blueprint = $this;
+
+            if (DB::getDriverName() !== 'mysql')
+                return;
 
             $table = $blueprint->getTable();
 
@@ -374,9 +387,12 @@ class DatabaseExtensionServiceProvider extends ServiceProvider
             SQL);
         });
 
-        Blueprint::macro('dropPartition', function() {
+        Blueprint::macro('dropPartition', function () {
             /** @var Illuminate\Database\Schema\Blueprint */
             $blueprint = $this;
+
+            if (DB::getDriverName() !== 'mysql')
+                return;
 
             $table = $blueprint->getTable();
 
@@ -414,7 +430,8 @@ class DatabaseExtensionServiceProvider extends ServiceProvider
                             1
                         );
                     });
-                return addcslashes($raw, '\\');
+                return Str::of(addcslashes($raw, '\\'))
+                    ->replace(["\r\n", "\n", "\r"], ' ')->value();
             });
 
         \Illuminate\Database\Query\Builder
@@ -431,7 +448,8 @@ class DatabaseExtensionServiceProvider extends ServiceProvider
                             1
                         );
                     });
-                return addcslashes($raw, '\\');
+                return Str::of(addcslashes($raw, '\\'))
+                    ->replace(["\r\n", "\n", "\r"], ' ')->value();
             });
     }
 }
