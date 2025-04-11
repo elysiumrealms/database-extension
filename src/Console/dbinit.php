@@ -3,6 +3,7 @@
 namespace Elysiumrealms\DatabaseExtension\Console;
 
 use Illuminate\Console\Command;
+use Illuminate\Support\Facades\DB;
 use PDO;
 
 class dbinit extends Command
@@ -28,12 +29,14 @@ class dbinit extends Command
      */
     public function handle()
     {
-        $pdo = new PDO(
+        if (DB::getDriverName() !== 'mysql')
+            return;
+
+        (new PDO(
             'mysql:host=' . env('DB_HOST'),
             env('DB_USERNAME'),
             env('DB_PASSWORD')
-        );
-        $pdo->exec('CREATE DATABASE IF NOT EXISTS ' . env('DB_DATABASE'));
+        ))->exec('CREATE DATABASE IF NOT EXISTS ' . env('DB_DATABASE'));
 
         return 0;
     }
