@@ -29,14 +29,15 @@ class dbinit extends Command
      */
     public function handle()
     {
-        if (DB::getDriverName() !== 'mysql')
-            return;
-
-        (new PDO(
-            'mysql:host=' . env('DB_HOST'),
-            env('DB_USERNAME'),
-            env('DB_PASSWORD')
-        ))->exec('CREATE DATABASE IF NOT EXISTS ' . env('DB_DATABASE'));
+        collect(config('database.connections'))
+            ->filter(fn($connection) => $connection['driver'] === 'mysql')
+            ->each(function ($connection) {
+                (new PDO(
+                    'mysql:host=' . $connection['host'],
+                    $connection['username'],
+                    $connection['password']
+                ))->exec('CREATE DATABASE IF NOT EXISTS ' . $connection['database']);
+            });
 
         return 0;
     }
